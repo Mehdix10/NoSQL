@@ -1,0 +1,151 @@
+:root {
+	--main-bg-color: #cacaca;
+	--tbd-bg-color: #ebebeb;
+	--tbd-txt-color: #232323;
+	--done-bg-color: #bcbfc2;
+	--done-txt-color: #6c757d;
+  }  
+
+@media(min-width: 767.98px) {
+	html,body  {
+		height: 100%;
+	}
+}
+
+body {
+	background-color: var(--main-bg-color);
+	color: var(--tbd-txt-color);
+}
+
+main {
+	overflow: auto;
+}
+
+nav {
+	height: auto!important;
+}
+
+.nav-link {
+	color: var(--main-bg-color);
+}
+
+.nav-link:hover {
+	color: var(--tbd-bg-color);
+	font-weight: bold;
+}
+
+.task {
+	border-style: groove;
+}
+
+.task:not(.done) {
+	border-color: var(--main-bg-color);
+}
+
+.done {
+	border-color: var(--done-bg-color);
+}
+
+.done div {
+	background-color: var(--done-bg-color);
+}
+
+.done textarea, .done input[type=text] {
+	text-decoration: line-through;
+	background-color: var(--done-bg-color);
+	color: var(--done-txt-color)!important;
+	pointer-events: none;
+}
+
+.done .btn-success {
+	visibility: hidden;
+}
+
+.task .disabled {
+	pointer-events: none;
+}
+
+.fa-spinner.spinning, .spinning .fa-spinner {
+    animation: spin 1s infinite linear;
+    -webkit-animation: spin2 1s infinite linear;
+}
+
+:not(.spinning)>.fa-spinner {
+    display: none;
+}
+
+.spinning>.spinhide {
+    display: none;
+}
+
+.list a.nav-link {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-right: var(--main-bg-color)!important;
+	border-top-left-radius: .25rem!important;
+	border-top-right-radius: 0!important;
+	border-bottom-left-radius: .25rem!important;
+	border-bottom-right-radius: 0!important;
+}
+
+.list a.nav-link, .list input {
+	height: calc(2.25rem + 4px);
+}
+
+.list input {
+	border: 0!important;
+}
+
+.list .input-group-append * {
+	border-top-left-radius: 0!important;
+	border-top-right-radius: 0!important;
+	border-bottom-left-radius: 0!important;
+	border-bottom-right-radius: 0!important;
+}
+
+.list.active.default-list .nav-link {
+	color: #495057;
+    background-color: var(--main-bg-color);
+    border-color: #dee2e6 #dee2e6 var(--main-bg-color)
+}
+
+.list.active:not(.default-list) a.nav-link {
+	display: none;
+}
+
+.list:not(.active) form {
+	display: none!important;
+}
+
+.list input {
+	border: 0;
+	background-color: var(--main-bg-color);
+	-webkit-tap-highlight-color: transparent;
+}
+
+#createList input[type=text], .dropdown-menu {
+    background-color: var(--tbd-bg-color);
+}
+
+button[disabled] {
+	display: none;
+}
+
+textarea, input {
+	color: var(--tbd-txt-color)!important;
+}
+
+textarea:focus, input:focus {
+    box-shadow: 0;
+}
+
+@keyframes spin {
+    from { transform: scale(1) rotate(0deg); }
+    to { transform: scale(1) rotate(360deg); }
+}
+
+@-webkit-keyframes spin2 {
+    from { -webkit-transform: rotate(0deg); }
+    to { -webkit-transform: rotate(360deg); }
+}

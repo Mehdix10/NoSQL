@@ -1,0 +1,760 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>// TODO</title>
+		
+		<meta name="theme-color" content="#343a40" />
+		
+		<script lang="text/javascript">
+			(function () {
+				'use strict';
+				
+				const url = new URL(window.location);
+				let path = url.pathname.split("/").filter((e) => !!e);
+				const tasksIdx = path.indexOf("resources");
+				if (tasksIdx > 0) {
+					path = path.slice(0, tasksIdx);
+				}
+				const baseUrl = new URL(path.join("/") + "/", url.origin);
+				if (tasksIdx > 0) {
+					window.location = baseUrl;
+				}
+				
+				Object.defineProperty(window, 'baseUrl', {
+					value: baseUrl,
+					writable: false
+				});
+				
+				const loginUrl = new URL("./login", baseUrl);
+				loginUrl.searchParams.append("error", "Session expired");
+				Object.defineProperty(window, 'loginUrl', {
+					value: loginUrl,
+					writable: false
+				});
+				
+				const baseElt = document.createElement('base');
+				baseElt.setAttribute("href", baseUrl); 
+				document.head.appendChild(baseElt);
+			})();
+		</script>
+		
+    	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    	<link rel="stylesheet" type="text/css" media="all" href="./awsome/css/all.min.css"/>
+    	<link rel="stylesheet" type="text/css" media="all" href="./bootstrap/css/bootstrap.min.css"/>
+		<link rel="stylesheet" type="text/css" media="all" href="./style.css"/>
+		
+		<template id="taskTpl">
+			<div class="task card mt-3">
+				<form>
+					<input type="hidden" name="id" value="">
+					<input type="hidden" name="list" value="">
+					<div class="input-group">
+						<div class="input-group-prepend">
+							<div class="input-group-text pt-2" style="border: 0;">
+								<input type="checkbox" class="h-100 spinhide" name="done" aria-label="Done">
+								<i class="fas fa-spinner"></i>
+							</div>
+						</div>
+						<input type="text" name="task" class="form-control m-0 h-auto" style="border: 0;">
+						<div class="input-group-append text-nowrap m-2">
+							<div class="text-nowrap">
+								<button class="btn btn-info btn-sm" disabled><i class="fas fa-edit fa-xs spinhide"></i><i class="fas fa-spinner"></i></button>
+								<a href="#" class="btn btn-danger btn-sm"><i class="far fa-trash-alt fa-xs spinhide"></i><i class="fas fa-spinner"></i></a>
+							</div>
+						</div>
+					</div>
+				</form>
+			</div>
+		</template>
+		
+		<template id="listTpl">
+			<li class="nav-item list">
+				<form class="form-inline d-flex justify-content-end">
+					<div class="input-group w-100">
+						<input type="text" name="task" class="nav-link form-control m-0">
+						<div class="input-group-append text-nowrap">
+							<button class="btn btn-info btn-sm list-rename" disabled><i class="fas fa-edit fa-xs spinhide"></i><i class="fas fa-spinner"></i></button>
+							<button href="#" class="btn btn-danger btn-sm list-delete" type="button" data-toggle="modal" data-target="#confirmListDelete"><i class="far fa-trash-alt fa-xs spinhide"></i><i class="fas fa-spinner"></i></button>
+						</div>
+					</div>
+				</form>
+			 	<a class="nav-link" href="#"></a>
+			</li>
+		</template>
+		
+		<script>
+			function spin(elt, timeout) {
+				const pe = elt.classList.contains("spinhide") ? elt.parentElement : elt;
+				pe.classList.add("spinning");
+				timeout = +timeout;
+				timeout = !isNaN(timeout) && timeout === parseInt(timeout, 10) && timeout;
+				let t = timeout && setTimeout(stop, timeout);
+				function stop() {
+					if (t) {
+						clearTimeout(t);
+						t = null;
+					}
+					pe.classList.remove("spinning");
+				}
+				return stop;
+			}
+		</script>
+	</head>
+	<body>
+	<div class="container-fluid h-100"><div class="row h-100">
+	<nav class="col-12 col-md-4 collapse d-md-flex navbar-dark bg-dark flex-column flex-nowrap p-0" id="sidebar">
+		<a class="navbar-brand text-center w-100" href="."><span class="text-success h3">//</span class="h3">&nbsp;<span class="font-weight-bold text-muted h3">TODO</span></a>
+		<div class="nav flex-column flex-nowrap flex-grow-1 mt-2 ml-0">
+			<ul id="listHolder" class="nav flex-column nav-tabs pl-2">
+				<li class="nav-item list default-list">
+					<a class="nav-link" href="#">Default</a>
+				</li>
+			</ul>
+			<form id="createList" class="form-inline m-2">
+				<div class="input-group input-group-sm w-100">
+					<input class="form-control form-control-sm" type="text" name="name" placeholder="New list" aria-label="New list">
+					<div class="input-group-append">
+						<button class="btn btn-outline-success" type="submit"><i class="fas fa-plus spinhide"></i><i class="fas fa-spinner"></i></button>
+					</div>
+				</div>
+			</form>
+		</div>
+		<ul class="navbar-nav m-auto">
+			<li class="nav-item dropright">
+				<a class="nav-link dropdown-toggle pb-3 text-center w-100" data-toggle="dropdown" id="userDropdown"
+					href="#" role="button" aria-haspopup="true" aria-expanded="false"><span id="userName"></span>&nbsp;</a>
+				<div class="dropdown-menu" aria-labelledby="userDropdown">
+					<a class="dropdown-item" href="./perform_logout">logout</a>
+				</div>
+			</li>
+		</ul>
+	</nav>
+	
+	<script type="text/javascript">
+		(function (){
+			'use strict';
+			
+			window.knownLists = {};
+
+			let currentList = undefined;
+			let poppingState = false;
+			
+			let modals = [];
+			
+			function get() {
+				return currentList;
+			}
+			
+			function set(newList) {
+				if (modals.length == 0) modals = [...document.querySelectorAll('.modal')].map(n => $('#' + n.id));
+				modals.forEach(m => m.modal('hide'));
+				
+				if (isDefault(newList)) {
+					newList = null;
+				} else if (!knownLists.hasOwnProperty(newList)) {
+					throw new Error("Unknown list '" + newList + "'");
+				}
+
+				let stopWaitMsg;
+				function displayLoadList() {
+					if (window.displayWait) {
+						stopWaitMsg = window.displayWait("Loading existing tasks of " + (newList ? "list " + knownLists[newList].name : "default list"));
+					} else {
+						setTimeout(displayLoadList, 10);
+					}
+				}
+				const historyCall = poppingState;
+				const getUrl = new URL("./api/tasks", window.baseUrl);
+				const params = getUrl.searchParams;
+				if (newList) params.append("list", newList)
+				fetch(
+					getUrl,
+					{credentials: "same-origin"}
+				).then((rsp) => {
+					if (rsp.ok) {
+						return rsp.json().catch(() => Promise.resolve([]));
+					} else {
+						if (rsp.status == 401) window.location = window.loginUrl;
+						return rsp.text().then((err) => { throw err; });
+					}
+				}).then((tasks) => {
+					Array.from(document.querySelectorAll(".task")).forEach((e) => e.parentElement.removeChild(e));
+					document.getElementById("currentListName").textContent = newList ? knownLists[newList].name : "Default";
+					currentList = newList;
+					update();
+					if (!historyCall) {
+						const histUrl = new URL(".", window.baseUrl);
+						if (newList) histUrl.searchParams.append("list", newList);
+						history.pushState({list : newList}, (newList ? knownLists[newList].name : "Default") + " list", histUrl);
+					}
+					tasks.forEach((t) => {window.addTask(t.id, t.name, t.done, newList);})
+					if (typeof window.startUpdates === 'function') window.startUpdates();
+					else window.startUpdates = true;
+				}).catch((err) => {
+					window.displayError(err);
+				}).finally(() => {
+					stopWaitMsg && stopWaitMsg();
+				});
+				displayLoadList();
+			}
+			
+			window.addEventListener('popstate', (evt) => {
+				if (evt && evt.state && evt.state.hasOwnProperty("list")) {
+					try {
+						poppingState = true;
+						window.currentList = evt.state.list;
+					} finally {
+						poppingState = false;
+					}
+				}
+			}, false);
+			
+			function isDefault(list) {
+				return !list || !(list = list.trim()) || list.toLowerCase() === "default";
+			}
+			
+			function init() {
+				if (currentList !== undefined) return currentList;
+				const url = new URL(window.location);
+				currentList = url.searchParams.get("list");
+				if (isDefault(currentList))	currentList = null;
+				if (currentList) currentList = currentList.trim();
+				try {
+					window.currentList = currentList;
+				} catch (err) {
+					window.displayError(err);
+					window.currentList = null;
+				}
+			}
+			
+			function findElement(list) {
+				if (isDefault(list)) {
+					return document.querySelector("nav .default-list");
+				} else {
+					return Array.from(document.querySelectorAll("nav .list:not(.default-list)")).find((e) => e.getAttribute("id") === "list_" + list);
+				}
+			}
+			
+			function update() {
+				Array.from(document.querySelectorAll("nav .list")).forEach((e) => e.classList.remove("active"));
+				const list = findElement(currentList);
+				if (list) list.classList.add('active');
+			}
+
+			Object.defineProperty(window, 'currentList', {get, set});
+			
+			const listHolder = document.querySelector("#listHolder");
+			const listTpl = document.querySelector("#listTpl");
+			window.addList = function(id, name) {
+				const elt = listTpl.content.cloneNode(true);
+				const root = elt.querySelector(".list");
+				const link = root.querySelector("a.nav-link");
+				const input = root.querySelector("input[type=text]");
+				const form = root.querySelector("form");
+				const editBtn = root.querySelector(".list-rename");
+				const delBtn = root.querySelector(".list-delete");
+				root.setAttribute("id", "list_" + id);
+				link.textContent = name;
+				input.value = name;
+				const goUrl = new URL(".", window.baseUrl);
+				goUrl.searchParams.append("list", id);
+				link.addEventListener('click', (evt) => {
+					evt.preventDefault();
+					window.currentList = id;
+					return false;
+				}, false);
+				form.addEventListener('submit', (evt) => {
+					evt.preventDefault();
+					const newName = input.value;
+					const stopSpin = spin(editBtn);
+					fetch(
+						new URL("./api/lists/" + encodeURIComponent(id), window.baseUrl),
+						{method: 'PUT', body: JSON.stringify({name: newName}), headers: {'Content-Type': 'application/json'}, credentials: "same-origin"}
+					).then((rsp) => {
+						if (rsp.ok) {
+							return rsp.text();
+						} else {
+							if (rsp.status == 401) window.location = window.loginUrl;
+							return rsp.text().then((err) => { throw err; });
+						}
+					}).then(() => {
+						knownLists[id].name = newName;
+						link.textContent = newName;
+						input.value = newName;
+						if (currentList === id) document.getElementById("currentListName").textContent = newName;
+						editBtn.setAttribute("disabled", "disabled");
+						input.blur();
+					}).catch((err) => {
+						window.displayError(err);
+						input.value = link.textContent;
+					}).finally(() => {
+						stopSpin();
+					});
+					return false;
+				}, false);
+				input.addEventListener('input', () => {
+					editBtn.removeAttribute("disabled");
+				}, false);
+				const delFunc = () => {
+					const stopSpin = spin(delBtn);
+					fetch(
+						new URL("./api/lists/" + encodeURIComponent(id), window.baseUrl),
+						{method: 'DELETE', credentials: "same-origin"}
+					).then((rsp) => {
+						if (rsp.ok) {
+							delete knownLists[id];
+							root.parentElement.removeChild(root);
+							window.currentList = null;
+						} else {
+							if (rsp.status == 401) window.location = window.loginUrl;
+							return rsp.text().then((txt) => { throw new Error(txt);});
+						}
+					}).catch((err) => {
+						window.displayError(err);
+					}).finally(() => {
+						stopSpin();
+					});
+				};
+				delBtn.addEventListener("click", (evt) => {
+					evt.preventDefault();
+					window.deleteCurrentList = delFunc;
+					return false;
+				}, false);
+				if (id === currentList) link.classList.add("active");
+				knownLists[id] = {
+					id,
+					name,
+					setName(name) {
+						link.textContent = name;
+						input.value = name;
+						this.name = name;
+					},
+					delete() {
+						root.parentElement.removeChild(root);
+						delete knownLists[id];
+						if (window.currentList == id) window.currentList = null;
+					}
+				};
+				Array.from(elt.children).forEach((c) => listHolder.appendChild(c));
+			}
+			document.querySelector(".default-list").addEventListener("click", (evt) => {
+				evt.preventDefault();
+				window.currentList = null;
+				return false;
+			}, false);
+			
+			function populateLists() {
+				// called once at startup
+				let stopWaitMsg;
+				function displayLoadList() {
+					if (window.displayWait) {
+						stopWaitMsg = window.displayWait("Loading existing lists");
+					} else {
+						setTimeout(displayLoadList, 10);
+					}
+				}
+				fetch(
+					new URL("./api/main", window.baseUrl),
+					{credentials: "same-origin"}
+				).then((rsp) => {
+					if (rsp.ok) {
+						return rsp.json();
+					} else {
+						if (rsp.status == 401) {
+							// user api called only once (page load) : should authenticate
+							const authUrl = new URL(window.loginUrl);
+							authUrl.searchParams.delete("error");
+							window.location = authUrl;
+						}
+						return rsp.text().then((err) => { throw err; });
+					}
+				}).then((main) => {
+					document.getElementById("userName").textContent = main.userName;
+					knownLists = {};
+					Array.from(document.querySelectorAll(".list:not(.default-list)")).forEach((e) => e.parentElement.removeChild(e));
+					main.hasOwnProperty("lists") && main.lists && main.lists.forEach((l) => window.addList(l.id, l.name));
+					init();
+					if (main.error) window.displayError(main.error);
+				}).catch((err) => {
+					window.displayError(err);
+					currentList = null;
+				}).finally(() => {
+					update();
+					stopWaitMsg && stopWaitMsg();
+				});
+				displayLoadList();
+			}
+			populateLists();
+			
+			window.updateList = function(id, name) {
+				knownLists[id] && knownLists[id].setName(name);
+			}
+			
+			window.deleteList = function(id) {
+				knownLists[id] && knownLists[id].delete();
+			}
+			
+			const newListForm = document.getElementById("createList");
+			const newListBtn = newListForm.querySelector("button");
+			const newListInpt = newListForm.querySelector("input");
+			newListForm.addEventListener("submit", (evt) => {
+				evt.preventDefault();
+				const stopSpin = spin(newListBtn);
+				fetch(
+					new URL("./api/lists/new", window.baseUrl),
+					{method: 'POST', body: new FormData(newListForm), credentials: "same-origin"}
+				).then((rsp) => {
+					if (rsp.ok) {
+						return rsp.text();
+					} else {
+						if (rsp.status == 401) window.location = window.loginUrl;
+						return rsp.text().then((err) => { throw err; });
+					}
+				}).then((id) => {
+					window.addList(id, newListInpt.value);
+					newListInpt.value = "";
+					newListInpt.blur();
+					window.currentList = id;
+				}).catch((err) => {
+					window.displayError(err);
+				}).finally(() => {
+					stopSpin();
+				});
+				return false;
+			}, false);
+			
+		})();
+	</script>
+	
+	<main class="col pt-2">
+		<div class="modal fade" id="confirmListDelete" tabindex="-1"
+			role="dialog" aria-labelledby="confirmListDeleteTitle"
+			aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="confirmListDeleteTitle">Confirm list deletion</h5>
+						<button type="button" class="close" data-dismiss="modal"aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">This wil delete your list and all its contained tasks, no matter in which state they are.</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+						<button type="button" class="btn btn-danger" data-dismiss="modal" id="deleteCurrentList">Delete&nbsp;<i class="far fa-trash-alt"></i></button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script type="text/javascript">
+			(function (){
+				'use strict';
+				
+				document.getElementById('deleteCurrentList').addEventListener('click', () => {
+					if (typeof window.deleteCurrentList === 'function') {
+						try {
+							window.deleteCurrentList();
+						} finally {
+							delete window.deleteCurrentList;
+						}
+					}
+				}, false);
+			})();
+		</script>
+
+		<div class="d-flex flex-wrap d-md-none">
+			<a href="" class="text-secondary h3" data-target="#sidebar" data-toggle="collapse"><i class="fa fa-bars"></i></a>
+			<span class="text-center d-md-none text-secondary flex-grow-1 px-3 h2" id="currentListName"></span>
+		</div>
+	
+		<form id="newTask" class="mt-3">
+			<div class="input-group">
+				<input class="form-control" type="text" name="name" placeholder="New task" aria-label="New task">
+				<div class="input-group-append">
+					<button class="btn btn-outline-success" type="submit"><i class="fas fa-plus spinhide"></i><i class="fas fa-spinner"></i></button>
+				</div>
+			</div>
+		</form>
+		<script type="text/javascript">
+			(function (){
+				'use strict';
+				const form = document.getElementById("newTask");
+				const contentInput = form.querySelector("input[type=text]");
+				const submit = form.querySelector("button[type=submit]");
+				form.addEventListener("submit", function(evt) {
+					evt.preventDefault();
+					const newTaskName = contentInput.value;
+					if (newTaskName) {
+						const stopSpin = spin(submit);
+						const data = new FormData(form);
+						if (window.currentList) data.append("list", window.currentList);
+						fetch(
+							new URL("./api/tasks/new", window.baseUrl),
+							{method: 'POST', body: data, credentials: "same-origin"}
+						).then((rsp) => {
+							if (rsp.ok) {
+								return rsp.text();
+							} else {
+								if (rsp.status == 401) window.location = window.loginUrl;
+								return rsp.text().then((err) => { throw err; });
+							}
+						}).then((id) => {
+							window.addTask(id, newTaskName, false, window.currentList);
+							contentInput.value = "";
+							stopSpin();
+						}).catch((err) => {
+							window.displayError(err);
+						}).finally(() => {
+							// contentInput.blur();
+							stopSpin();
+						});
+					}
+					return false;
+				});
+			})();
+		</script>
+			
+		<div class="alert alert-danger mt-3" role="alert" id="errorBox" style="display: none;"></div>
+		<script type="text/javascript">
+			(function() {
+				'use strict';
+				
+				const errorBox = document.getElementById("errorBox");
+				
+				window.displayError = function(error, timeout = 3000) {
+					typeof window.console.error === 'function' && window.console.error(error);
+					
+					error = ''+error;
+
+					let tomcatError;
+					// Checking for Tomcat exception
+					tomcatError = error.match(/<p><b>message<\/b> <u>Request processing failed; nested exception is ([^<]+)<\/u><\/p>/);
+					if (tomcatError && tomcatError[1]) {
+						error = tomcatError[1];
+					} else {
+						tomcatError = error.match(/<p><b>message<\/b> <u>([^<]+)<\/u><\/p>/);
+						if (tomcatError && tomcatError[1]) {
+							error = tomcatError[1];
+						} else {
+							tomcatError = error.match(/<p><b>description<\/b> <u>([^<]+)<\/u><\/p>/);
+							if (tomcatError && tomcatError[1]) {
+								error = tomcatError[1];
+							}
+						}
+					}
+					
+					const htmlMsg = document.createElement("div");
+					htmlMsg.classList.add("mt-2");
+					htmlMsg.textContent = error;
+					errorBox.appendChild(htmlMsg);
+					errorBox.style.display = "block";
+					setTimeout(() => {
+						errorBox.removeChild(htmlMsg);
+						if (errorBox.childElementCount === 0) {
+							errorBox.style.display = "none";
+						}
+					}, timeout);
+				};
+			})();
+		</script>
+		
+		<div class="alert alert-info mt-3" id="waitingBox" style="text-align: center; display: none;"><i class="fas fa-spinner"></i> <span id="waitMessage">Loading...</span></div>
+		<script type="text/javascript">
+			(function() {
+				const waitInfo = document.getElementById("waitingBox");
+				const waitMsg = waitInfo.querySelector("#waitMessage");
+				const defaultWaitMsg = waitMsg.textContent;
+				
+				let currentMsgStop;
+				
+				window.displayWait = function(msg) {
+					waitMsg.textContent = msg ? msg : defaultWaitMsg;
+					waitInfo.classList.add("spinning");
+					waitInfo.style.display = "block";
+					const ret = () => {
+						if (ret === currentMsgStop) {
+							waitInfo.classList.remove("spinning");
+							waitInfo.style.display = "none";
+						}
+					}
+					return (currentMsgStop = ret);
+				}
+			})();
+		</script>
+		
+		<script type="text/javascript" id="taskInserter">
+			(function() {
+				'use strict';
+				
+				const t = document.getElementById('taskTpl');
+				
+				function decodeBool(bool) { return !['false', '0', 'n', 'no'].includes((''+bool).toLowerCase()); }
+				
+				const tasks = {};
+
+				window.addTask = function(id, name, done, list) {
+					id = JSON.stringify(''+id).slice(1, -1);
+					name = JSON.stringify(''+name).slice(1, -1);
+					done = decodeBool(done);
+					list = list ? JSON.stringify(''+list).slice(1, -1) : null;
+					
+					const clone = t.content.cloneNode(true);
+					const root = Array.from(clone.children).find((e) => e.classList.contains("task"));
+					const idHolder = root.querySelector("input[name=id]");
+					const contentHolder = root.querySelector("input[name=task]");
+					const doneCheckbox = root.querySelector("input[type=checkbox]");
+					const form = root.querySelector("form");
+					const listVal = root.querySelector("input[name=list]");
+					const submit = root.querySelector(".btn-info");
+					const del = root.querySelector(".btn-danger");
+					
+					idHolder.value = id;
+
+					function setName(_name) {
+						_name = JSON.stringify(''+_name).slice(1, -1);
+						contentHolder.value = _name;
+						submit.setAttribute("disabled", "disabled");
+						name = _name
+					}
+					setName(name);
+
+					function setDone(_done) {
+						_done = decodeBool(_done);
+						if (_done) {
+							doneCheckbox.setAttribute("checked", "checked");
+							root.classList.add("done");
+						} else {
+							doneCheckbox.removeAttribute("checked");
+							root.classList.remove("done");
+						}
+						doneCheckbox.checked = _done;
+						done = _done;
+					}
+					setDone(done);
+					
+					contentHolder.addEventListener("input", () => {
+						submit.removeAttribute("disabled");
+					}, false);
+					
+					if (list) listVal.value = list;
+					
+					doneCheckbox.addEventListener('change', () => {
+						
+						const stopSpin = spin(doneCheckbox);
+						
+						const url = new URL("./api/tasks/done/" + encodeURIComponent(id), window.baseUrl);
+						const params = url.searchParams;
+						params.append("done", !!doneCheckbox.checked);
+						if (list) params.append("list", list);
+						fetch(
+							url,
+							{credentials: "same-origin"}
+						).then((rsp) => {
+							if (rsp.ok) {
+								setDone(doneCheckbox.checked);
+								stopSpin();
+							} else {
+								if (rsp.status == 401) window.location = window.loginUrl;
+								return rsp.text().then((err) => {throw err;});
+							}
+						}).catch((err) => {
+							setDone(done);
+							window.displayError(err);
+							stopSpin();
+						});
+						
+					}, false);
+
+
+					del.addEventListener("click", (evt) => {
+						evt.preventDefault();
+						const stopSpin = spin(del);
+						const url = new URL("./api/tasks", window.baseUrl);
+						const params = url.searchParams;
+						params.append("id", id);
+						if (list) params.append("list", list);
+						fetch(
+							url,
+							{method: 'DELETE', credentials: "same-origin"}
+						).then((rsp) => {
+							if (rsp.ok) {
+								return rsp.text().then((ok) => {
+									if (decodeBool(ok)) {
+										root.parentElement && root.parentElement.removeChild(root);
+										delete tasks.id;
+									} else {
+										throw new Error("Cannot delete task " + id);
+									}
+								})
+							} else {
+								if (rsp.status == 401) window.location = window.loginUrl;
+								return rsp.text().then((txt) => { throw new Error(txt);});
+							}
+						}).catch((err) => {
+							window.displayError(err);
+						}).finally(() => {
+							contentHolder.blur();
+							stopSpin();
+						});
+						return false;
+					});
+					
+					form.addEventListener("submit", (evt) => {
+						evt.preventDefault();
+						const stopSpin = spin(submit);
+						fetch(
+							new URL("./api/tasks/" + encodeURIComponent(id), window.baseUrl),
+							{method: 'PUT', body: JSON.stringify({list, task: contentHolder.value}), headers: {'Content-Type': 'application/json'}, credentials: "same-origin"}
+						).then((rsp) => {
+							if (rsp.ok) {
+								setName(contentHolder.value);
+							} else {
+								if (rsp.status == 401) window.location = window.loginUrl;
+								return rsp.text().then((err) => { throw new Error(err);});
+							}
+						}).catch((err) => {
+							setName(name);
+							window.displayError(err);
+						}).finally(() => {
+							contentHolder.blur();
+							stopSpin();
+						});
+						return false;
+					}, false);
+					
+					const firstTask = document.querySelector(".task") || document.getElementById("taskInserter");
+					firstTask.parentElement.insertBefore(root, firstTask);
+					
+					tasks[id] = {
+						update(name, done) {
+							if (name !== undefined && name !== null) setName(name);
+							if (done !== undefined && done !== null) setDone(done);
+						},
+						delete() {
+							root.parentElement && root.parentElement.removeChild(root);
+							delete tasks.id;
+						}
+					}
+				}
+				
+				window.hasTask = function(id) {
+					return tasks.hasOwnProperty(id);
+				}
+				
+				window.updateTask = function(id, name, done) {
+					tasks[id] && tasks[id].update(name, done);
+				}
+				
+				window.deleteTask = function(id, name, done) {
+					tasks[id] && tasks[id].delete(name, done);
+				}
+			})();
+		</script>
+		
+	</main>
+	</div></div>
+	<script src="./bootstrap/js/bootstrap.min.js"></script>
+	</body>
+</html>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title> todo-auto </title>
+		<meta name="theme-color" content="#343a40" />
+    	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		
+		<script lang="text/javascript">
+			(function () {
+				'use strict';
+				
+				const url = new URL(window.location);
+				let path = url.pathname.split("/").filter((e) => !!e);
+				const logIdx = path.findIndex((p) => p.toLowerCase().startsWith('login'));
+				if (logIdx >= 0) {
+					path = path.slice(0, logIdx);
+				}
+				const baseUrl = new URL(path.join("/") + "/", url.origin);
+				
+				Object.defineProperty(window, 'baseUrl', {
+					value: baseUrl,
+					writable: false
+				})
+				
+				const baseElt = document.createElement('base');
+				baseElt.setAttribute("href", baseUrl); 
+				document.head.appendChild(baseElt);
+			})();
+		</script>
+		
+    	<link rel="stylesheet" type="text/css" media="all" href="./awsome/css/all.min.css"/>
+    	<link rel="stylesheet" type="text/css" media="all" href="./bootstrap/css/bootstrap.min.css"/>
+		<link rel="stylesheet" type="text/css" media="all" href="./style.css"/>
+		<style>
+			html, body {
+			  height: 100%;
+			}
+			
+			body {
+			  display: -ms-flexbox;
+			  display: flex;
+			  -ms-flex-align: center;
+			  align-items: center;
+			  padding-top: 40px;
+			  padding-bottom: 40px;
+			  background-color: #f5f5f5;
+			}
+			
+			.form-signin {
+			  width: 100%;
+			  max-width: 330px;
+			  padding: 15px;
+			  margin: auto;
+			}
+			.form-signin .checkbox {
+			  font-weight: 400;
+			}
+			.form-signin .form-control {
+			  position: relative;
+			  box-sizing: border-box;
+			  height: auto;
+			  padding: 10px;
+			  font-size: 16px;
+			}
+			.form-signin .form-control:focus {
+			  z-index: 2;
+			}
+			.form-signin input[type="email"] {
+			  margin-bottom: -1px;
+			  border-bottom-right-radius: 0;
+			  border-bottom-left-radius: 0;
+			}
+			.form-signin input[type="password"] {
+			  margin-bottom: 10px;
+			  border-top-left-radius: 0;
+			  border-top-right-radius: 0;
+			}
+		</style>
+	</head>
+	<body class="bg-dark text-muted">
+		
+		<div class="container">
+			<div class="d-flex flex-column justify-content-center align-items-center">
+				<h1 class="h1 mb-3"><span class="text-success">//</span>&nbsp;<span class="font-weight-bold text-muted">TODO</span></h1>
+			
+				<div class="alert alert-danger d-none" role="alert">Authentication error : <span id=error></span></div>
+				<script type="text/javascript">
+					(function () {
+						const error = new URL(window.location).searchParams.get('error');
+						if (error) {
+							const errMsg = document.getElementById('error');
+							errMsg.textContent = error;
+							errMsg.parentElement.classList.remove('d-none');
+						}
+					})();
+				</script>
+				
+				<form id="authenticationForm" class="form-signin" action="./perform_login" method='POST'>
+					<h2 class="h3 mb-2 font-weight-normal">Please log in</h2>
+					<label for="username" class="sr-only">User name</label>
+					<input type="text" id="username" name="username" class="form-control" placeholder="User name" required autofocus>
+					<label for="password" class="sr-only">Password</label>
+					<input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
+					<button class="btn btn-lg btn-info btn-block" type="submit">Log in</button>
+				</form>
+  				
+				<form id="registrationForm"  class="form-signin" action="./register" method='POST'>
+					<h2 class="h3 mt-3 mb-2 font-weight-normal">Or register</h2>
+					<input type="hidden" id=usernameRegistration name="username" value="">
+					<input type="hidden" id=passwordRegistration name="password" value="">
+					<label for="password2" class="sr-only">Password</label>
+					<input type="password" id="password2" name="password2" class="form-control" style="border-radius: 0.25rem" placeholder="Confirm password">
+					<input class="btn btn-lg btn-info btn-block" type="submit" name="register" value="Register">
+				</form>
+				
+				<script type="text/javascript">
+					(function () {
+						'use strict';
+						
+						const usernameInpt = document.getElementById("username");
+						const usernameRegInpt = document.getElementById("usernameRegistration");
+						
+						const pwdInpt = document.getElementById("password");
+						const pwdRegInpt = document.getElementById("passwordRegistration");
+						
+						function copy() {
+							usernameRegInpt.value = usernameInpt.value;
+							pwdRegInpt.value = pwdInpt.value;
+						}
+						
+						pwdInpt.addEventListener("input", copy, false);
+						usernameInpt.addEventListener("input", copy, false);
+						
+						document.addEventListener("ready", copy, false);
+					})();
+				</script>
+			</div>
+		</div>
+	
+		<script src="./bootstrap/js/bootstrap.min.js"></script>
+	</body>
+</html>
