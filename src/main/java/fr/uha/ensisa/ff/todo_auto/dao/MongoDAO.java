@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
@@ -97,12 +98,12 @@ public class MongoDAO implements TodoDAO {
 				// the mongo db will search
 				// untill it found a different string than the regex, that is because the data
 				// is ordred by _id
-				.find(regex("_id", "^" + user)).projection(fields(include("_id", "task", "done")));
+				.find(regex("_id", "^" + user)).projection(fields(include("_id", "name", "done")));
 		List<Map<String, Object>> res = new ArrayList<>();
 		for (var task : tasksDoc) {
 			var tmp = new HashMap<String, Object>();
 			tmp.put("id", task.getString("_id"));
-			tmp.put("name", task.getString("task"));
+			tmp.put("name", task.getString("name"));
 			try {
 				tmp.put("done", task.getBoolean("done"));
 			} catch (Exception ex) {
@@ -123,8 +124,8 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public void renameDefaultTask(String user, String taskId, String newName) throws UnknownUserException {
- 		var filter = Filters.eq("_id", taskId);
-		var update = Updates.set("task", newName);
+		var filter = Filters.eq("_id", taskId);
+		var update = Updates.set("name", newName);
 		this.database.getCollection("tasks").updateOne(filter, update);
 
 	}
@@ -138,67 +139,138 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public String createList(String user, String name) throws UnknownUserException {
-		final String listId = user+Math.random();
+		final String listId = user + Math.random();
 		Document listDoc = new Document().append("_id", listId).append("name", name);
 		try {
 			this.database.getCollection("list").insertOne(listDoc);
 			return listId;
 		} catch (MongoWriteException error) {
-			throw new UnknownUserException(name);
+			return this.createList(user, name);
 		}
 	}
 
 	@Override
 	public List<Map<String, ?>> getLists(String user) throws UnknownUserException {
-		// TODO Auto-generated method stub
-		return null;
+		var filter = Filters.regex("_id", "^" + user);
+		try {
+
+			var lists = this.database.getCollection("list").find(filter).projection(fields(include("_id", "name")));
+
+			List<Map<String, ?>> res = new ArrayList<>();
+			for (final var list : lists) {
+				var tmp = new TreeMap<>();
+				tmp.put("id", list.get("_id").toString());
+				tmp.put("name", list.get("name").toString());
+				res.add((Map) tmp);
+			}
+			return res;
+		} catch (Exception x) {
+			System.err.println(x.getMessage());
+			return null;
+		}
+
 	}
 
 	@Override
 	public void deleteList(String user, String listId) throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
+//		var filter = Filters.regex("_id", "^" + user);
+		var filter = Filters.eq("_id", listId);
+		try {
+
+			this.database.getCollection("list").deleteOne(filter);
+		} catch (Exception x) {
+			System.err.println("[ERROR]" + x.getMessage());
+		}
 
 	}
 
 	@Override
 	public void renameList(String user, String listId, String newName)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
-
+		var filter = Filters.eq("_id", listId);
+		var update = Updates.set("name", newName);
+		try {
+			this.database.getCollection("list").updateOne(filter, update);
+		} catch (Exception x) {
+			System.err.println("[ERROR]" + x.getMessage());
+		}
 	}
 
 	@Override
 	public List<Map<String, Object>> getTasksOfList(String user, String listId)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
-		return null;
+
+		var filter = Filters.regex("_id", "^" + listId);
+		var req = this.database.getCollection("tasks").find(filter).projection(fields(include("_id", "name", "done")));
+		List<Map<String, Object>> res = new ArrayList<>();
+		try {
+			for (final var task : req) {
+				Map<String, Object> tmp = new TreeMap<>();
+				tmp.put("id", task.get("_id"));
+				tmp.put("name", task.get("name"));
+				tmp.put("done", task.get("done"));
+				res.add(tmp);
+			}
+			return res;
+		} catch (Exception x) {
+			System.err.println("[ERROR] " + x.getMessage());
+			return null;
+		}
+
 	}
 
 	@Override
 	public String createListTask(String user, String listId, String taskName)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
-		return null;
+
+		String taskId = listId + "_" + Math.random();
+		Document newTask = new Document();
+		newTask.append("_id", taskId).append("name", taskName).append("done", false);
+		try {
+			this.database.getCollection("tasks").insertOne(newTask);
+			return taskId;
+		} catch (Exception x) {
+			System.err.println("[ERROR] " + x.getMessage());
+			return null;
+		}
 	}
 
 	@Override
 	public void renameListTask(String user, String listId, String taskId, String newTaskName)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
+		var filter = Filters.regex("_id", "^" + listId);
+		var update = Updates.set("name", newTaskName);
+		try {
+			this.database.getCollection("tasks").updateOne(filter, update);
+		} catch (Exception x) {
+			System.err.println("[ERROR] " + x.getMessage());
+		}
 
 	}
 
 	@Override
 	public void setListTaskDone(String user, String listId, String taskId, boolean done)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
-
+//		var filter = Filters.regex("_id", "^" + listId);
+		var filter = Filters.eq("_id", taskId);
+		var update = Updates.set("done", done);
+		try {
+			this.database.getCollection("tasks").updateOne(filter, update);
+		} catch (Exception x) {
+			System.err.println("[ERROR] " + x.getMessage());
+		}
 	}
 
 	@Override
 	public void deleteListTask(String user, String listId, String taskId)
 			throws UnknownUserException, UnknownListException {
-		// TODO Auto-generated method stub
+//		var filter = Filters.regex("_id", "^" + listId);
+		var filter = Filters.eq("_id", taskId);
+		try {
+			this.database.getCollection("tasks").deleteOne(filter);
+		} catch (Exception x) {
+			System.err.println("[ERROR] " + x.getMessage());
+		}
 
 	}
 
