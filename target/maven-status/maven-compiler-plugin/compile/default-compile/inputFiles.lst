@@ -1,17 +1,17 @@
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\AuthProvider.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\MvcConfiguration.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\RestAuthenticationEntryPoint.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\SecurityConfig.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\controller\MainController.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\controller\TasksController.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\DisplayableException.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyIdentifiable.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyList.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyTask.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyTodoDAO.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyUser.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\MongoDAO.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\TodoDAO.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UnknownListException.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UnknownUserException.java
-C:\eclipse\eclipse workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UserAlreadyExistsException.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\AuthProvider.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\MvcConfiguration.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\RestAuthenticationEntryPoint.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\config\SecurityConfig.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\controller\MainController.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\controller\TasksController.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\DisplayableException.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyIdentifiable.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyList.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyTask.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyTodoDAO.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\dummy\DummyUser.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\MongoDAO.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\TodoDAO.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UnknownListException.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UnknownUserException.java
+C:\eclipse\eclipse-workspace\NoSQL\src\main\java\fr\uha\ensisa\ff\todo_auto\dao\UserAlreadyExistsException.java

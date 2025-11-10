@@ -32,16 +32,60 @@ public class MongoDAO implements TodoDAO {
 	private MongoClient client;
 	private MongoDatabase database;
 	private final String defaultTaskList = "default";
-	private static int taskCounter = 0;
+
+	private final static String dbName = "todo-one-enr";
+	private final static String defaultListName = "default List";
+
+	public class TaskList {
+		private String id;
+		private String name;
+		private ArrayList<TreeMap<String, Object>> tasks;
+
+		public TaskList(String id, String name) {
+			this.setId(id);
+			this.setName(name);
+			setTasks(new ArrayList<TreeMap<String, Object>>());
+		}
+
+		public TaskList(String id, String name, ArrayList<TreeMap<String, Object>> tasks) {
+			this.setId(id);
+			this.setName(name);
+			this.setTasks(tasks);
+		}
+
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public void setName(String name) {
+			this.name = name;
+		}
+
+		public ArrayList<TreeMap<String, Object>> getTasks() {
+			return tasks;
+		}
+
+		public void setTasks(ArrayList<TreeMap<String, Object>> tasks) {
+			this.tasks = tasks;
+		}
+	}
 
 	public MongoDAO(String uri) {
 		client = MongoClients.create(uri);
-		database = client.getDatabase("todo");
+		database = client.getDatabase(MongoDAO.dbName);
 
 		// Enforcing connection is up and running
-		Bson command = new BsonDocument("ping", new BsonInt64(1));
-		Document commandResult = database.runCommand(command);
-		System.out.println("Reached MongoDB : " + commandResult);
+//		Bson command = new BsonDocument("ping", new BsonInt64(1));
+//		Document commandResult = database.runCommand(command);
+//		System.out.println("Reached MongoDB : " + commandResult);
 	}
 
 	@Override
@@ -54,7 +98,8 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public void registerUser(String user, String password) throws UserAlreadyExistsException {
-		Document userDoc = new Document().append("_id", user).append("pwd", password);
+		Document userDoc = new Document().append("_id", user).append("pwd", password).append("lists",
+				new ArrayList<Map<String, Object>>());
 		try {
 			this.database.getCollection("users").insertOne(userDoc);
 		} catch (MongoWriteException error) {
@@ -74,41 +119,35 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public String createDefaultTask(String user, String taskName) throws UnknownUserException {
-		final String id = user + '_' + Math.random();
-		Document taskDoc = new Document().append("_id", id)
-//				.append("_id",this.defaultTaskList)
-//				.append("user", user)
-				.append("task", taskName).append("done", false);
+		final String listId = Double.toString(Math.random());
+		final String taskId = Double.toString(Math.random());
 
-		try {
-			this.database.getCollection("tasks").insertOne(taskDoc);
-			return id;
-		} catch (MongoWriteException error) {
-			if (error.getCode() == 1100)
-				throw new Error("Task " + taskName + " already exist for this user " + user);
-		}
-		return id;
+		var task = new Document().append("id", taskId).append("name", taskName).append("done", false);
+
+		var tasksArray = new ArrayList<Document>();
+		tasksArray.add(task);
+
+		var taskList = new Document().append("id", listId).append("name", MongoDAO.defaultListName).append("tasks",
+				tasksArray);
+
+// Push the taskList Document into the "lists" array
+		final var update = Updates.push("lists", taskList);
+		this.database.getCollection("users").updateOne(eq("_id", user), update);
+		return taskId;
 	}
 
 	@Override
 	public List<Map<String, Object>> getDefaultTasks(String user) throws UnknownUserException {
-		// TODO Auto-generated method stub
-		FindIterable<Document> tasksDoc = this.database.getCollection("tasks")
-				// If we use the regex expressions and we filter by the first chars in the _id
-				// the mongo db will search
-				// untill it found a different string than the regex, that is because the data
-				// is ordred by _id
-				.find(regex("_id", "^" + user)).projection(fields(include("_id", "name", "done")));
+		Document userDoc = this.database.getCollection("users").find(eq("_id", user))
+				.projection(fields(include("tasks"), excludeId())).first();
+		List<Map> tasks = userDoc.getList("tasks", Map.class);
+
 		List<Map<String, Object>> res = new ArrayList<>();
-		for (var task : tasksDoc) {
-			var tmp = new HashMap<String, Object>();
-			tmp.put("id", task.getString("_id"));
-			tmp.put("name", task.getString("name"));
-			try {
-				tmp.put("done", task.getBoolean("done"));
-			} catch (Exception ex) {
-				tmp.put("done", task.getString("done"));
-			}
+		for (Map<String, Object> task : tasks) {
+			var tmp = new TreeMap<String, Object>();
+			tmp.put("id", task.get("id"));
+			tmp.put("name", task.get("name"));
+			tmp.put("done", task.get("done"));
 
 			res.add(tmp);
 		}
@@ -117,36 +156,33 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public void setDefaultTaskDone(String user, String taskId, boolean done) throws UnknownUserException {
-		var filter = Filters.eq("_id", taskId);
-		var update = Updates.set("done", done);
-		this.database.getCollection("tasks").updateOne(filter, update);
+		// TODO : ? We can filter by the user then by the task Id
+		var filter = Filters.eq("task.id", taskId);
+		var update = Updates.set("tasks.$.done", done);
+		this.database.getCollection("users").updateOne(filter, update);
 	}
 
 	@Override
 	public void renameDefaultTask(String user, String taskId, String newName) throws UnknownUserException {
-		var filter = Filters.eq("_id", taskId);
+		var filter = Filters.eq("tasks.id", taskId);
 		var update = Updates.set("name", newName);
-		this.database.getCollection("tasks").updateOne(filter, update);
+		this.database.getCollection("users").updateOne(filter, update);
 
 	}
 
 	@Override
 	public void deleteDefaultTask(String user, String taskId) throws UnknownUserException {
-		var filter = Filters.eq("_id", taskId);
+		var filter = Filters.eq("tasks.id", taskId);
 		this.database.getCollection("tasks").deleteOne(filter);
 
 	}
 
 	@Override
 	public String createList(String user, String name) throws UnknownUserException {
-		final String listId = user + Math.random();
-		Document listDoc = new Document().append("_id", listId).append("name", name);
-		try {
-			this.database.getCollection("list").insertOne(listDoc);
-			return listId;
-		} catch (MongoWriteException error) {
-			return this.createList(user, name);
-		}
+		final String listId = name + '_' + Math.random();
+		final var update = Updates.push("tasks", new TreeMap<String, Object>());
+		this.database.getCollection("users").updateOne(eq("_id", user), update);
+		return listId;
 	}
 
 	@Override
