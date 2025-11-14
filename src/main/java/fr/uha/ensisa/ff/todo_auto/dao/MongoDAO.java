@@ -4,6 +4,7 @@ import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,12 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
+import com.mongodb.internal.client.model.FindOptions;
 
 import fr.uha.ensisa.ff.todo_auto.dao.TodoDAO;
 import fr.uha.ensisa.ff.todo_auto.dao.UnknownListException;
@@ -36,47 +42,47 @@ public class MongoDAO implements TodoDAO {
 	private final static String dbName = "todo-one-enr";
 	private final static String defaultListName = "default List";
 
-	public class TaskList {
-		private String id;
-		private String name;
-		private ArrayList<TreeMap<String, Object>> tasks;
-
-		public TaskList(String id, String name) {
-			this.setId(id);
-			this.setName(name);
-			setTasks(new ArrayList<TreeMap<String, Object>>());
-		}
-
-		public TaskList(String id, String name, ArrayList<TreeMap<String, Object>> tasks) {
-			this.setId(id);
-			this.setName(name);
-			this.setTasks(tasks);
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-
-		public String getName() {
-			return name;
-		}
-
-		public void setName(String name) {
-			this.name = name;
-		}
-
-		public ArrayList<TreeMap<String, Object>> getTasks() {
-			return tasks;
-		}
-
-		public void setTasks(ArrayList<TreeMap<String, Object>> tasks) {
-			this.tasks = tasks;
-		}
-	}
+//	public class TaskList {
+//		private String id;
+//		private String name;
+//		private ArrayList<TreeMap<String, Object>> tasks;
+//
+//		public TaskList(String id, String name) {
+//			this.setId(id);
+//			this.setName(name);
+//			setTasks(new ArrayList<TreeMap<String, Object>>());
+//		}
+//
+//		public TaskList(String id, String name, ArrayList<TreeMap<String, Object>> tasks) {
+//			this.setId(id);
+//			this.setName(name);
+//			this.setTasks(tasks);
+//		}
+//
+//		public String getId() {
+//			return id;
+//		}
+//
+//		public void setId(String id) {
+//			this.id = id;
+//		}
+//
+//		public String getName() {
+//			return name;
+//		}
+//
+//		public void setName(String name) {
+//			this.name = name;
+//		}
+//
+//		public ArrayList<TreeMap<String, Object>> getTasks() {
+//			return tasks;
+//		}
+//
+//		public void setTasks(ArrayList<TreeMap<String, Object>> tasks) {
+//			this.tasks = tasks;
+//		}
+//	}
 
 	public MongoDAO(String uri) {
 		client = MongoClients.create(uri);
@@ -99,7 +105,7 @@ public class MongoDAO implements TodoDAO {
 	@Override
 	public void registerUser(String user, String password) throws UserAlreadyExistsException {
 		Document userDoc = new Document().append("_id", user).append("pwd", password).append("lists",
-				new ArrayList<Map<String, Object>>());
+				new ArrayList<Document>());
 		try {
 			this.database.getCollection("users").insertOne(userDoc);
 		} catch (MongoWriteException error) {
@@ -119,38 +125,64 @@ public class MongoDAO implements TodoDAO {
 
 	@Override
 	public String createDefaultTask(String user, String taskName) throws UnknownUserException {
-		final String listId = Double.toString(Math.random());
+		final String listId = this.defaultTaskList;
 		final String taskId = Double.toString(Math.random());
+		
+		Document taskDoc = new Document()
+				.append("id", taskId)
+				.append("name", taskName)
+				.append("done", false);
+		
+		// User filter
+		var userFilter = Filters.eq("_id", user);
+		// Array of lists filter
+		var listFilter = Filters.eq("list.id", listId);
 
-		var task = new Document().append("id", taskId).append("name", taskName).append("done", false);
+		// Update options to specify that we going to modify the array
+		var options = new UpdateOptions()
+                .arrayFilters(Arrays.asList(listFilter));
 
-		var tasksArray = new ArrayList<Document>();
-		tasksArray.add(task);
-
-		var taskList = new Document().append("id", listId).append("name", MongoDAO.defaultListName).append("tasks",
-				tasksArray);
-
-// Push the taskList Document into the "lists" array
-		final var update = Updates.push("lists", taskList);
-		this.database.getCollection("users").updateOne(eq("_id", user), update);
+		// The update action touched the array
+		var taskPush = Updates.push("lists.$[list].tasks", taskDoc);
+		
+		UpdateResult result = this.database.getCollection("users").updateOne(userFilter, taskPush, options);
+//		System.out.println("INFO "+ result.getModifiedCount());
+		if(result.getModifiedCount() == 0)
+		{
+			Document listDoc = new Document().append("id", listId)
+					.append("name", listId+ " list")
+					.append("tasks", new ArrayList<Document>());
+			var listPush = Updates.push("lists", listDoc);
+			result = this.database.getCollection("users").updateOne(userFilter, listPush);
+//			System.out.println("INFO "+ result.getModifiedCount());
+			if(result.getModifiedCount() > 0 )
+				this.database.getCollection("users").updateOne(userFilter, taskPush, options);
+			else
+				System.err.println("[ERROR] Cannot push the list to the user "+ user);
+		}
 		return taskId;
 	}
 
 	@Override
 	public List<Map<String, Object>> getDefaultTasks(String user) throws UnknownUserException {
-		Document userDoc = this.database.getCollection("users").find(eq("_id", user))
-				.projection(fields(include("tasks"), excludeId())).first();
-		List<Map> tasks = userDoc.getList("tasks", Map.class);
-
-		List<Map<String, Object>> res = new ArrayList<>();
-		for (Map<String, Object> task : tasks) {
-			var tmp = new TreeMap<String, Object>();
-			tmp.put("id", task.get("id"));
-			tmp.put("name", task.get("name"));
-			tmp.put("done", task.get("done"));
-
-			res.add(tmp);
+		var userFilter = Filters.eq("id", user);
+		var listFilter = Filters.eq("list.id", this.defaultTaskList);
+		
+		// TODO: Complete 
+		var taskList = this.database.getCollection("users").find(Filters.and(userFilter,listFilter)).projection(fields(include("lists.tasks")));
+		taskList.forEach(System.out::println);
+		
+		var res = new ArrayList<Map<String, Object>>();
+		for(final var task : taskList)
+		{
+			System.out.print(task.toJson());
+			var map = new TreeMap<String, Object>();
+			map.put("id", task.getString("id"));
+			map.put("name", task.getString("name"));
+			map.put("done", task.getBoolean("done"));
+			res.add(map);
 		}
+		
 		return res;
 	}
 
