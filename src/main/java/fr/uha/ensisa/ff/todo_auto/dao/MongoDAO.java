@@ -102,7 +102,7 @@ public class MongoDAO implements TodoDAO {
 		result = this.database.getCollection("users").updateOne(userFilter, taskPush, options);
 //		System.out.println("INFO "+ result.getModifiedCount());
 		if (result.getModifiedCount() == 0) {
-			Document listDoc = new Document().append("id", listId).append("name", listId + " list").append("tasks",
+			Document listDoc = new Document().append("id", listId).append("name", listId).append("tasks",
 					new ArrayList<Document>());
 			var listPush = Updates.push("lists", listDoc);
 			result = this.database.getCollection("users").updateOne(userFilter, listPush);
@@ -120,48 +120,48 @@ public class MongoDAO implements TodoDAO {
 		var userFilter = Filters.eq("_id", user);
 		var listFilter = Filters.eq("lists.id", this.defaultTaskList);
 
-		var userDoc = this.database.getCollection("users").find(Filters.and(userFilter, listFilter))
+		var userDocList = this.database.getCollection("users").find(Filters.and(userFilter, listFilter))
 				.projection(fields(include("lists.$"))).first();
 
-		var taskList = userDoc.getList("lists", Document.class).getFirst();
+		// En création le user ne contient pas de list
+		if (userDocList == null)
+			return null;
 
-		var res = new ArrayList<Map<String, Object>>();
+		return (List<Map<String, Object>>) userDocList.get("lists");
 
-		for (final var task : taskList.getList("tasks", Document.class)) {
-			var map = new TreeMap<String, Object>();
-			map.put("id", task.getString("id"));
-			map.put("name", task.getString("name"));
-			map.put("done", task.getBoolean("done"));
-			res.add(map);
-		}
-		return res;
+//		var res = new ArrayList<Map<String, Object>>();
+//
+//		for (final var task : taskList.getList("tasks", Document.class)) {
+//			var map = new TreeMap<String, Object>();
+//			map.put("id", task.getString("id"));
+//			map.put("name", task.getString("name"));
+//			map.put("done", task.getBoolean("done"));
+//			res.add(map);
+//		}
+//		return res;
 	}
 
 	@Override
 	public void setDefaultTaskDone(String user, String taskId, boolean done) throws UnknownUserException {
 		var userFilter = Filters.eq("_id", user);
-		
-		var updateOptions = new UpdateOptions().arrayFilters(List.of(
-		        Filters.eq("list.id", this.defaultTaskList),
-		        Filters.eq("task.id", taskId)
-		));
+
+		var updateOptions = new UpdateOptions()
+				.arrayFilters(List.of(Filters.eq("list.id", this.defaultTaskList), Filters.eq("task.id", taskId)));
 
 		var update = Updates.set("lists.$[list].tasks.$[task].done", done);
-			
+
 		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 	}
 
 	@Override
 	public void renameDefaultTask(String user, String taskId, String newName) throws UnknownUserException {
 		var userFilter = Filters.eq("_id", user);
-		
-		var updateOptions = new UpdateOptions().arrayFilters(List.of(
-		        Filters.eq("list.id", this.defaultTaskList),
-		        Filters.eq("task.id", taskId)
-		));
+
+		var updateOptions = new UpdateOptions()
+				.arrayFilters(List.of(Filters.eq("list.id", this.defaultTaskList), Filters.eq("task.id", taskId)));
 
 		var update = Updates.set("lists.$[list].tasks.$[task].name", newName);
-			
+
 		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 
 	}
@@ -169,148 +169,152 @@ public class MongoDAO implements TodoDAO {
 	@Override
 	public void deleteDefaultTask(String user, String taskId) throws UnknownUserException {
 		var userFilter = Filters.eq("_id", user);
-		
-		var updateOptions = new UpdateOptions().arrayFilters(List.of(
-		        Filters.eq("list.id", this.defaultTaskList)
-		));
+
+		var updateOptions = new UpdateOptions().arrayFilters(List.of(Filters.eq("list.id", this.defaultTaskList)));
 
 		var update = Updates.pull("lists.$[list].tasks", Filters.eq("id", taskId));
-			
+
 		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 
 	}
 
 	@Override
 	public String createList(String user, String name) throws UnknownUserException {
-		final String listId = name + '_' + Math.random();
-		final var update = Updates.push("tasks", new TreeMap<String, Object>());
-		this.database.getCollection("users").updateOne(eq("_id", user), update);
-		return listId;
+		final String listId = this.defaultTaskList;
+
+		// User filter
+		var userFilter = Filters.eq("_id", user);
+
+		Document listDoc = new Document().append("id", listId).append("name", name).append("tasks",
+				new ArrayList<Document>());
+		var listPush = Updates.push("lists", listDoc);
+		var result = this.database.getCollection("users").updateOne(userFilter, listPush);
+		if (result.getModifiedCount() > 0)
+			return listId;
+		else
+			return null;
 	}
 
 	@Override
 	public List<Map<String, ?>> getLists(String user) throws UnknownUserException {
-		var filter = Filters.regex("_id", "^" + user);
-		try {
+		var userFilter = Filters.eq("_id", user);
 
-			var lists = this.database.getCollection("list").find(filter).projection(fields(include("_id", "name")));
-
-			List<Map<String, ?>> res = new ArrayList<>();
-			for (final var list : lists) {
-				var tmp = new TreeMap<>();
-				tmp.put("id", list.get("_id").toString());
-				tmp.put("name", list.get("name").toString());
-				res.add((Map) tmp);
-			}
-			return res;
-		} catch (Exception x) {
-			System.err.println(x.getMessage());
-			return null;
-		}
-
+		var userListDoc = this.database.getCollection("users").find(userFilter)
+				.projection(include("lists.id", "lists.name")).first();
+		return (List<Map<String, ?>>) userListDoc.get("lists");
 	}
 
 	@Override
 	public void deleteList(String user, String listId) throws UnknownUserException, UnknownListException {
-//		var filter = Filters.regex("_id", "^" + user);
-		var filter = Filters.eq("_id", listId);
-		try {
+		var userFilter = Filters.eq("_id", user);
 
-			this.database.getCollection("list").deleteOne(filter);
-		} catch (Exception x) {
-			System.err.println("[ERROR]" + x.getMessage());
-		}
+		var update = Updates.pull("lists.$", Filters.eq("id", listId));
+
+		this.database.getCollection("users").updateOne(userFilter, update);
 
 	}
 
 	@Override
 	public void renameList(String user, String listId, String newName)
 			throws UnknownUserException, UnknownListException {
-		var filter = Filters.eq("_id", listId);
-		var update = Updates.set("name", newName);
-		try {
-			this.database.getCollection("list").updateOne(filter, update);
-		} catch (Exception x) {
-			System.err.println("[ERROR]" + x.getMessage());
-		}
+		var userFilter = Filters.eq("_id", user);
+		var listFilter = Filters.eq("lists.id", listId);
+
+		var update = Updates.set("lists.$", newName);
+
+		this.database.getCollection("users").updateOne(Filters.and(userFilter, listFilter), update);
+
 	}
 
 	@Override
 	public List<Map<String, Object>> getTasksOfList(String user, String listId)
 			throws UnknownUserException, UnknownListException {
+		var userFilter = Filters.eq("_id", user);
+		var listFilter = Filters.eq("lists.id", listId);
 
-		var filter = Filters.regex("_id", "^" + listId);
-		var req = this.database.getCollection("tasks").find(filter).projection(fields(include("_id", "name", "done")));
-		List<Map<String, Object>> res = new ArrayList<>();
-		try {
-			for (final var task : req) {
-				Map<String, Object> tmp = new TreeMap<>();
-				tmp.put("id", task.get("_id"));
-				tmp.put("name", task.get("name"));
-				tmp.put("done", task.get("done"));
-				res.add(tmp);
-			}
-			return res;
-		} catch (Exception x) {
-			System.err.println("[ERROR] " + x.getMessage());
+		var userDocList = this.database.getCollection("users").find(Filters.and(userFilter, listFilter))
+				.projection(fields(include("lists.$"))).first();
+
+		// En création le user ne contient pas de list
+		if (userDocList == null)
 			return null;
-		}
+
+		return (List<Map<String, Object>>) userDocList.get("lists");
 
 	}
 
 	@Override
 	public String createListTask(String user, String listId, String taskName)
 			throws UnknownUserException, UnknownListException {
+		final String taskId = Double.toString(Math.random());
 
-		String taskId = listId + "_" + Math.random();
-		Document newTask = new Document();
-		newTask.append("_id", taskId).append("name", taskName).append("done", false);
-		try {
-			this.database.getCollection("tasks").insertOne(newTask);
-			return taskId;
-		} catch (Exception x) {
-			System.err.println("[ERROR] " + x.getMessage());
-			return null;
+		Document taskDoc = new Document().append("id", taskId).append("name", taskName).append("done", false);
+
+		// User filter
+		var userFilter = Filters.eq("_id", user);
+		// Array of lists filter
+		var listFilter = Filters.eq("list.id", listId);
+
+		// Update options to specify that we going to modify the array
+		var options = new UpdateOptions().arrayFilters(Arrays.asList(listFilter));
+
+		// The update action touched the array
+		var taskPush = Updates.push("lists.$[list].tasks", taskDoc);
+		UpdateResult result = null;
+		result = this.database.getCollection("users").updateOne(userFilter, taskPush, options);
+//		System.out.println("INFO "+ result.getModifiedCount());
+		if (result.getModifiedCount() == 0) {
+			Document listDoc = new Document().append("id", listId).append("name", listId).append("tasks",
+					new ArrayList<Document>());
+			var listPush = Updates.push("lists", listDoc);
+			result = this.database.getCollection("users").updateOne(userFilter, listPush);
+//			System.out.println("INFO "+ result.getModifiedCount());
+			if (result.getModifiedCount() > 0)
+				this.database.getCollection("users").updateOne(userFilter, taskPush, options);
+			else
+				System.err.println("[ERROR] Cannot push the list to the user " + user);
 		}
+		return taskId;
+
 	}
 
 	@Override
 	public void renameListTask(String user, String listId, String taskId, String newTaskName)
 			throws UnknownUserException, UnknownListException {
-		var filter = Filters.regex("_id", "^" + listId);
-		var update = Updates.set("name", newTaskName);
-		try {
-			this.database.getCollection("tasks").updateOne(filter, update);
-		} catch (Exception x) {
-			System.err.println("[ERROR] " + x.getMessage());
-		}
+		var userFilter = Filters.eq("_id", user);
+
+		var updateOptions = new UpdateOptions()
+				.arrayFilters(List.of(Filters.eq("list.id", listId), Filters.eq("task.id", taskId)));
+
+		var update = Updates.set("lists.$[list].tasks.$[task].name", newTaskName);
+
+		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 
 	}
 
 	@Override
 	public void setListTaskDone(String user, String listId, String taskId, boolean done)
 			throws UnknownUserException, UnknownListException {
-//		var filter = Filters.regex("_id", "^" + listId);
-		var filter = Filters.eq("_id", taskId);
-		var update = Updates.set("done", done);
-		try {
-			this.database.getCollection("tasks").updateOne(filter, update);
-		} catch (Exception x) {
-			System.err.println("[ERROR] " + x.getMessage());
-		}
+		var userFilter = Filters.eq("_id", user);
+
+		var updateOptions = new UpdateOptions()
+				.arrayFilters(List.of(Filters.eq("list.id", listId), Filters.eq("task.id", taskId)));
+
+		var update = Updates.set("lists.$[list].tasks.$[task].done", done);
+
+		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 	}
 
 	@Override
 	public void deleteListTask(String user, String listId, String taskId)
 			throws UnknownUserException, UnknownListException {
-//		var filter = Filters.regex("_id", "^" + listId);
-		var filter = Filters.eq("_id", taskId);
-		try {
-			this.database.getCollection("tasks").deleteOne(filter);
-		} catch (Exception x) {
-			System.err.println("[ERROR] " + x.getMessage());
-		}
+		var userFilter = Filters.eq("_id", user);
 
+		var updateOptions = new UpdateOptions().arrayFilters(List.of(Filters.eq("list.id", listId)));
+
+		var update = Updates.pull("lists.$[list].tasks", Filters.eq("id", taskId));
+
+		this.database.getCollection("users").updateOne(userFilter, update, updateOptions);
 	}
 
 }
